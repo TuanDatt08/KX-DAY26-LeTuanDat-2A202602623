@@ -38,7 +38,29 @@ get_weather_declaration = types.FunctionDeclaration(
     ),
 )
 
-TOOLS = [types.Tool(function_declarations=[get_weather_declaration])]
+# Thêm tool thứ 2 → lại phải viết TAY thêm một schema nữa (pain point!)
+get_forecast_declaration = types.FunctionDeclaration(
+    name="get_forecast",
+    description="Lấy dự báo thời tiết vài ngày tới của một thành phố",
+    parameters=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "city": types.Schema(
+                type=types.Type.STRING, description="Tên thành phố"
+            ),
+            "days": types.Schema(
+                type=types.Type.INTEGER, description="Số ngày cần dự báo (1-3)"
+            ),
+        },
+        required=["city"],
+    ),
+)
+
+TOOLS = [
+    types.Tool(
+        function_declarations=[get_weather_declaration, get_forecast_declaration]
+    )
+]
 
 
 # 2. App tự thực thi tool (trong thực tế sẽ gọi API thời tiết thật)
@@ -70,6 +92,24 @@ def get_weather(city: str) -> str:
     return json.dumps({"city": city, **mock_data.get(city, default)}, ensure_ascii=False)
 
 
+# ...và phải tự viết hàm thực thi tương ứng, giữ cho KHỚP với schema ở trên
+def get_forecast(city: str, days: int = 3) -> str:
+    """Trả về dự báo (mock) *days* ngày tới của *city*."""
+    import json
+
+    mock_forecast = [
+        {"ngày": "ngày mai", "nhiệt_độ": "27°C", "thời_tiết": "mưa nhẹ"},
+        {"ngày": "ngày kia", "nhiệt_độ": "31°C", "thời_tiết": "nắng"},
+        {"ngày": "3 ngày nữa", "nhiệt_độ": "30°C", "thời_tiết": "nhiều mây"},
+    ]
+    days = max(1, min(int(days), 3))  # model có thể trả 3.0 (float)
+    return json.dumps({"city": city, "dự_báo": mock_forecast[:days]}, ensure_ascii=False)
+
+
+# ...và phải tự map tên tool → hàm, nếu không vòng lặp chỉ biết gọi get_weather
+FUNCTIONS = {"get_weather": get_weather, "get_forecast": get_forecast}
+
+
 def run(prompt: str) -> str:
     """Gửi *prompt* tới Gemini, tự động xử lý function calling và trả về câu trả lời cuối."""
     contents: list[types.Content] = [
@@ -94,7 +134,7 @@ def run(prompt: str) -> str:
         function_responses = []
         for fc in resp.function_calls:
             print(f"  [model yêu cầu] {fc.name}({fc.args})")
-            result = get_weather(**fc.args)  # <-- app chạy, không phải model
+            result = FUNCTIONS[fc.name](**fc.args)  # <-- app chạy, không phải model
             print(f"  [app thực thi]  -> {result}")
             function_responses.append(
                 types.Part.from_function_response(
@@ -118,6 +158,6 @@ def run(prompt: str) -> str:
 
 
 if __name__ == "__main__":
-    question = "Thời tiết Hà Nội và Đà Nẵng hôm nay thế nào?"
+    question = "Thời tiết Hà Nội hôm nay thế nào? Dự báo 3 ngày tới ở Đà Nẵng ra sao?"
     print(f"User: {question}\n")
     print("Trả lời:", run(question))

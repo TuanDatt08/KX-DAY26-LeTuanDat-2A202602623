@@ -32,5 +32,15 @@ def get_weather(city: str) -> str:
     return f"{city}: {_MOCK_DB.get(city, '28°C, không có dữ liệu chi tiết')}"
 
 
+# Thêm tool mới = thêm 1 hàm. Schema tự sinh, client không phải sửa gì.
+@mcp.tool()
+def get_forecast(city: str, days: int = 3) -> str:
+    """Lấy dự báo thời tiết vài ngày tới của một thành phố (1-3 ngày)."""
+    mock = ["27°C, mưa nhẹ", "31°C, nắng", "30°C, nhiều mây"]
+    return f"{city}: " + "; ".join(
+        f"ngày +{i + 1}: {t}" for i, t in enumerate(mock[: max(1, min(days, 3))])
+    )
+
+
 if __name__ == "__main__":
     mcp.run()  # mặc định chạy qua stdio
